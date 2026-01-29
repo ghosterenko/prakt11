@@ -29,45 +29,56 @@ struct LogBuffer {
 };
 DWORD Tid[4] = { 1, 2, 3, 4 };
 HANDLE T[4];
+CRITICAL_SECTION cs;
 
 LogBuffer buffer;
 
 void Logger() {
     srand(time(NULL));
-    int id = rand() % 3;
-    LogRecord record;
-    record.IDT = GetCurrentThreadId();
-    record.priority = GetThreadPriority(GetCurrentThread());
-    
-    string mess = "[" + to_string(record.IDT) + ", " + to_string(record.priority) + "] - " + record.message[id] + " (" + to_string(record.tick) + "ms).";
-    for (int i = 0; i < mess.size(); i++)
-    {
-        record.message[i] += mess[i];
-    }
-    buffer.records[buffer.index] = record;
-    buffer.index++;
+    while (buffer.index <= MAX_LOGS - 1) {
 
-    int time = rand() % 100;
-    Sleep(time < 10 ? 10 : time);
+        int id = rand() % 3;
+        LogRecord record;
+        record.IDT = GetCurrentThreadId();
+        record.priority = GetThreadPriority(GetCurrentThread());
+
+        string mess = "[" + to_string(record.IDT) + ", " + to_string(record.priority) + "] - " + messages[id] + " (" + to_string(record.tick) + "ms)." + to_string(buffer.index);
+        strcpy_s(record.message, mess.c_str());
+        EnterCriticalSection(&cs);
+        if (buffer.index <= MAX_LOGS - 1) {
+            buffer.records[buffer.index] = record;
+            buffer.index++;
+        }
+        LeaveCriticalSection(&cs);
+        int time = rand() % 100;
+        Sleep(time < 10 ? 10 : time);
+
+    }
 }
 void Seeker() {
-    int temp = 0;
-    for (int i = buffer.index; i > buffer.index; i--)
-    {
-        temp++;
-        if (temp == 5) {
-            Sleep(100);
+    while (buffer.index <= MAX_LOGS - 1) {
+        int temp = 0;
+        
+        for (int i = buffer.index - 1; i >= 0; i--)
+        {
+            temp++;
+            if (temp == 5) {
+                Sleep(100);
+            }
+            else {
+                cout << buffer.records[i].message << endl;
+            }
         }
-        else {
-            cout << buffer.records[i].message << endl;
-        }
+        
     }
+    
 }
 
 int main()
 {
     setlocale(LC_ALL, "ru");
 
+    InitializeCriticalSection(&cs);
     T[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)Logger, NULL, NULL, &Tid[0]);
     if (T[0] == NULL) {
         cout << "Ошибка";
@@ -97,6 +108,8 @@ int main()
     if (!SetThreadPriority(T[3], THREAD_PRIORITY_IDLE)) {
         cout << "Ошибка";
     }
-    
+
     WaitForMultipleObjects(4, T, TRUE, INFINITE);
+
+    DeleteCriticalSection(&cs);
 }
